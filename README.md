@@ -1,0 +1,4 @@
+MiningMasiveDatasets
+====================
+
+Exercises and quizes
