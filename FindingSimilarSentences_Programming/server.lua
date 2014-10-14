@@ -2,7 +2,7 @@ local mapreduce = require "mapreduce"
 local connection_string = "django"
 local dbname      = "MMDB"
 local module_name = "solution"
-local storage     = "shared"
+-- local storage     = "shared"
 local s = mapreduce.server.new(connection_string, dbname)
 s:configure{
   taskfn         = module_name,

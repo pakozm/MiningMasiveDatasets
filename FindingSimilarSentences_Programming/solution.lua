@@ -1,7 +1,9 @@
-local mapreduce = require "mapreduce"
+local iterator = require "oop-iter.iterator" -- https://github.com/pakozm/lua-oop-iter
+local mongo = require "mongo"                -- https://github.com/moai/luamongo
 
 -- string hash function: http://isthe.com/chongo/tech/comp/fnv/
-local NUM_MAPPERS  = 10000
+local INF          = math.huge
+local NUM_MAPPERS  = 1000
 local NUM_REDUCERS = 100
 local HASH_SIZE    = 2^20
 local FNV_prime    = 16777619
@@ -12,7 +14,6 @@ local SENTENCES_TXT = os.getenv("HOME") .. "/Dropbox/CEU/COURSERA/MiningMasiveDa
 -- local SENTENCES_TXT = os.getenv("HOME") .. "/Dropbox/CEU/COURSERA/MiningMasiveDatasets/FindingSimilarSentences_Programming/toy.txt"
 
 local NS = "MMDB.sentence_offsets"
-local mongo = require "mongo"
 local db = assert( mongo.Connection.New() )
 assert( db:connect("localhost") )
 
@@ -45,21 +46,28 @@ end
 local function distance(s1,s2)
   local N=#s1
   local M=#s2
-  local INF=math.huge
-  local F = matrix(N+1,M+1):fill(INF)
-  F:set(1,1,0)
-  F(':',1):linear()
-  F(1,':'):linear()
-  for i=2,N+1 do
-    for j=2,M+1 do
-      if s1[i-1] == s2[j-1] then
-        F:set(i,j,F:get(i-1,j-1))
-      else
-        F:set(i,j, math.min(F:get(i-1,j), F:get(i,j-1), F:get(i-1,j-1)) + 1)
-      end
+  if math.abs(N-M) > 1 then return INF end
+  if N == M then
+    -- same length, count number of substitutions
+    local dist=0
+    for i=1,N do
+      if s1[i] ~= s2[i] then dist=dist+1 end
+      if dist > 1 then dist=INF break end
     end
+    return dist
+  else -- different length, look for a deletion/addition
+    -- s1 will be always shorter than s2 (otherwise, swap both variables)
+    if M<N then s1,s2,N,M=s2,s1,M,N end
+    -- traverse both sequences until the first difference
+    local i=1
+    while s1[i] == s2[i] do i=i+1 end
+    -- i can be M when s1 is a substring of s2
+    if i == M then return 1 end
+    -- otherwise, traverse the rest of the sequence with a gap in s2
+    while i<=N and s1[i] == s2[i+1] do i=i+1 end
+    if i <= N then return INF end
+    return 1
   end
-  return F:get(N+1,M+1)
 end
 
 ---------------------------------------------------------------------------
@@ -94,11 +102,11 @@ local mapfn = function(key,value,emit)
     local words_it = iterator(line:gmatch("[^%s]+"))
     local sid = tonumber(words_it:step())
     local words = words_it:map(string_hash):table()
-    local h = sequence_hash(table.ivalues(words))
+    local h = sequence_hash(iterator(ipairs(words)):select(2))
     emit(h % HASH_SIZE, sid)
     for i=1,#words do
       local h = sequence_hash(iterator(ipairs(words)):
-                              filter(function(k,v) return k ~= i end):get())
+                              filter(function(k,v) return k ~= i end))
       emit(h % HASH_SIZE, sid)
     end
     -- annotate where this sentence starts
@@ -128,7 +136,7 @@ local reducefn = function(key,bucket,emit)
         -- print(table.concat(s2," "))
         -- print(d)
         -- print("#####################################################")
-        if d <= 1 then emit("{%d,%d}"%{v1,v2}) end
+        if d <= 1 then emit(string.format("{%d,%d}",v1,v2)) end
       end
     end
   end
@@ -145,6 +153,17 @@ local finalfn = function(pairs_iterator)
   end
   return true -- indicates to remove mongo gridfs result files
 end
+
+-- unit testing
+-- assert( distance({"B"},{"A","B","C"}) == INF )
+-- assert( distance({"A","B","C"},{"C"}) == INF )
+-- assert( distance({"A","B","C"},{"C","B","A"}) == INF )
+-- assert( distance({"A","B","C"},{"A","A","C"}) == 1 )
+-- assert( distance({"B","C"},{"A","B","C"}) == 1 )
+-- assert( distance({"A","B","C"},{"A","B"}) == 1 )
+-- assert( distance({"A","B","C"},{"A","C"}) == 1 )
+-- assert( distance({"A","B","C"},{"B","C"}) == 1 )
+-- assert( distance({"B","C"},{"B","C"}) == 0 )
 
 return {
   init = init,
