@@ -3,23 +3,23 @@ import os
 
 HOME=os.environ['HOME']
 #SENTENCES_TXT=HOME + "/Dropbox/CEU/COURSERA/MiningMasiveDatasets/FindingSimilarSentences_Programming/toy.txt"
-SENTENCES_TXT=HOME + "/Dropbox/CEU/COURSERA/MiningMasiveDatasets/FindingSimilarSentences_Programming/mini.txt"
-#SENTENCES_TXT=HOME + "/Dropbox/CEU/COURSERA/MiningMasiveDatasets/FindingSimilarSentences_Programming/sentences.txt"
+SENTENCES_TXT=HOME + "/Dropbox/CEU/COURSERA/MiningMasiveDatasets/FindingSimilarSentences_Programming/sentences.txt"
 HASH1_SIZE=2**20
 #HASH1_SIZE=2**4
+NUM_LINES=100000000000
 
-def extractSentence(line,word2id,sid):
+def extractSentence(line,sid):
     line = line.strip("\n").split(" ")
     if sid != int(line[0]):
         raise SystemExit
-    seq = [ word2id.setdefault(w,len(word2id)) for w in line[1:len(line)] ]
+    seq = [ hash(w) for w in line[1:len(line)] ]
     return tuple(seq)
 
-def readSentenceAt(f,offset,word2id):
+def readSentenceAt(f,offset):
     f.seek(offset,0)
     line = f.readline().strip("\n")
     tokens = line.split(" ")
-    seq = [ word2id[w] for w in tokens[1:len(line)] ]
+    seq = [ w for w in tokens[1:len(line)] ]
     return [ tuple(seq), line ]
 
 def distance(s1,s2):
@@ -37,7 +37,7 @@ def distance(s1,s2):
             if s1[i-1] == s2[j-1]:
                 F[i][j] = F[i-1][j-1]
             else:
-                F[i][j] = min(F[i-1][j]+1, F[i][j-1]+1, F[i-1][j-1]+1)
+                F[i][j] = min(F[i-1][j], F[i][j-1], F[i-1][j-1]) + 1
     return F[N][M]
 
 def newHashTable(size):
@@ -45,7 +45,7 @@ def newHashTable(size):
 
 def insertHashFunc1(table, sid, sentence,):
     def insert(sid,seq):
-        bucket = hash(seq) % len(table)
+        bucket = hash(hash(seq) + hash(len(seq))) % len(table)
         table[bucket].add(sid)
     insert(sid,sentence)
     for i in range(0,len(sentence)):
@@ -53,21 +53,25 @@ def insertHashFunc1(table, sid, sentence,):
 
 sentences_file = open(SENTENCES_TXT)
 sentence_offsets = []
-word2id = dict()
 hash1 = newHashTable(HASH1_SIZE)
 while True:
     file_offset = sentences_file.tell()
     line = sentences_file.readline()
     if not line: break
     sid = len(sentence_offsets)
-    sentence = extractSentence(line,word2id,sid)
+    if sid >= NUM_LINES: break
+    sentence = extractSentence(line,sid)
     sentence_offsets.append(file_offset)
     insertHashFunc1(hash1, sid, sentence)
     print(sid)
 
+size = 0
 hist = dict()
 for l in hash1:
+    size = size + len(l)*(len(l)+1)/2
     hist[len(l)] = 1 + hist.setdefault(len(l), 0)
+
+print "SIZE ",str(size)
 
 # print(hash1)
 
@@ -80,16 +84,24 @@ for k in hist:
     f.write(str(count) + " " + str(howmany) + "\n")
 f.close()
 
+pairs=0
 candidate_pairs = set()
 for bucket in hash1:
-    for v1 in bucket:
-        for v2 in bucket:
+    bucket_list = list(bucket)
+    for i in range(0,len(bucket_list)-1):
+        for j in range(i+1,len(bucket_list)):
+            v1 = bucket_list[i]
+            v2 = bucket_list[j]
+            size = size - 1
             pair = tuple([v1,v2])
-            if v1 < v2 and pair not in candidate_pairs:
+            if pair not in candidate_pairs:
                 candidate_pairs.add(pair)
-                s1,w1 = readSentenceAt(sentences_file, sentence_offsets[v1], word2id)
-                s2,w2= readSentenceAt(sentences_file, sentence_offsets[v2], word2id)
+                s1,w1 = readSentenceAt(sentences_file, sentence_offsets[v1])
+                s2,w2 = readSentenceAt(sentences_file, sentence_offsets[v2])
                 d = distance(s1,s2)
                 if d <= 1:
-                    print d,v1,v2
-                    print(w1,w2)
+                    pairs=pairs+1
+                    print d,v1,v2,size,len(candidate_pairs),pairs
+                    # print(w1,w2)
+
+print size,len(candidate_pairs),pairs
