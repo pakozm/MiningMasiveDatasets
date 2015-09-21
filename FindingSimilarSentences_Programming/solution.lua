@@ -136,7 +136,7 @@ local reducefn = function(key,bucket,emit)
         -- print(table.concat(s2," "))
         -- print(d)
         -- print("#####################################################")
-        if d <= 1 then emit(string.format("{%d,%d}",v1,v2)) end
+        if d <= 1 then emit({v1,v2}) end
       end
     end
   end
@@ -146,7 +146,6 @@ local finalfn = function(pairs_iterator)
   for key,values in pairs_iterator do
     if #values > 0 then
       for _,v in ipairs(values) do
-        local v = load("return " .. v)()
         print("PAIR",table.concat(v, " "))
       end
     end

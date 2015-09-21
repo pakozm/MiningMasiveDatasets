@@ -1,4 +1,4 @@
-list = [ 15, 21, 24, 30, 49 ]
+L = [ 15, 21, 24, 30, 49 ]
 
 def factors(n):
     i = 2
@@ -13,11 +13,11 @@ def factors(n):
         factors.add(n)
     return factors
 
-dict = {}
+D = {}
 
-for i in list:
+for i in L:
     for p in factors(i):
-        dict.setdefault(p,[]).append(i)
+        D.setdefault(p,[]).append(i)
 
-for k in dict:
-    print(k, sum(dict[k]))
+for k in D:
+    print(k, sum(D[k]))

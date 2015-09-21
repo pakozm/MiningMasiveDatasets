@@ -11,7 +11,7 @@ def computeDegree(M):
 
 # outM is an adjacency matrix
 # beta is the smooth parameter (avoids "spider traps")
-def pageRank(outM, beta, verbose=False, epsilon=None):
+def pageRank(outM, beta, verbose=False, epsilon=None, maxIter=float("inf")):
     inM = computeIncidenceMatrix(outM)
     # d_in = computeDegree(outM)
     d_out = computeDegree(outM)
@@ -35,6 +35,8 @@ def pageRank(outM, beta, verbose=False, epsilon=None):
         if verbose:
             print (it, r, diff, leak)
         if diff < EPSILON:
+            break
+        if it >= maxIter:
             break
     return r
 
